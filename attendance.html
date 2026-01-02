@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Attendance System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  padding:0;
+  font-family:Arial;
+  color:white;
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  padding:18px;
+}
+
+/* Background */
+.bg-img{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  z-index:-2;
+}
+.overlay{
+  position:fixed;
+  top:0;
+  left:0;
+  width:100%;
+  height:100%;
+  background:rgba(0,0,0,0.65);
+  z-index:-1;
+}
+
+.container{width:100%;max-width:920px}
+
+/* Title */
+h2{text-align:center;font-size:24px;margin-bottom:5px}
+
+/* Boxes */
+.box{
+  background:rgba(255,255,255,0.12);
+  padding:14px;
+  border-radius:18px;
+  margin-top:18px;
+  border:1px solid rgba(255,255,255,0.3);
+  backdrop-filter:blur(12px);
+}
+
+/* Inputs */
+input{
+  width:100%;
+  padding:10px;
+  margin:6px 0;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,0.35);
+  background:rgba(255,255,255,0.18);
+  color:white;
+  font-size:15px;
+  outline:none;
+}
+
+/* Buttons */
+button{
+  width:100%;
+  padding:13px;
+  margin:8px 0;
+  border-radius:12px;
+  border:none;
+  font-size:16px;
+  font-weight:bold;
+  cursor:pointer;
+}
+.green{background:#00ff6e;color:#000}
+.blue{background:#2b9bff}
+.red{background:#ff4747}
+.yellow{background:#ffd33b;color:#000}
+
+/***********  👉 SHORT TABLE BOX 👈  ***********/
+.table-wrapper{
+  width:100%;
+  max-height:230px;
+  overflow-y:auto;
+  overflow-x:auto;
+  border-radius:12px;
+}
+
+/* Table */
+table{
+  width:100%;
+  min-width:550px;
+  border-collapse:collapse;
+  background:rgba(0,0,0,0.4);
+  border-radius:12px;
+  overflow:hidden;
+}
+th{
+  background:rgba(0,0,0,0.6);
+}
+th,td{
+  border:1px solid rgba(255,255,255,0.2);
+  padding:6px;
+  text-align:center;
+}
+
+/* Popup */
+.popup{
+  position:fixed;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%) scale(0.6);
+  background:white;
+  color:black;
+  padding:18px;
+  border-radius:16px;
+  text-align:center;
+  width:260px;
+  opacity:0;
+  pointer-events:none;
+  transition:.25s;
+}
+.popup.show{
+  opacity:1;
+  pointer-events:auto;
+  transform:translate(-50%,-50%) scale(1);
+}
+.popup-icon{
+  font-size:45px;
+  margin-bottom:6px;
+}
+</style>
+</head>
+
+<body>
+
+<img src="bg.png" class="bg-img">
+<div class="overlay"></div>
+
+<div class="container">
+
+<h2>📚 Student Attendance System</h2>
+
+<!-- Upload Box -->
+<div class="box">
+<h3>📤 Upload Students Excel</h3>
+<input type="file" id="excelFile">
+<button class="green" onclick="saveExcel()">Save Students</button>
+</div>
+
+<!-- Attendance -->
+<div class="box">
+<h3>Enter Roll Number</h3>
+
+<input type="text" 
+id="roll"
+placeholder="Enter Roll Number"
+oninput="findStudent()">
+
+<input type="text" id="name" placeholder="Student Name" readonly>
+<input type="text" id="class" placeholder="Class & Section" readonly>
+
+<button class="blue" onclick="markAttendance()">Mark Attendance</button>
+<button class="red" onclick="clearAttendance()">Clear Attendance</button>
+</div>
+
+<!-- Attendance List -->
+<div class="box">
+<h3>Attendance List</h3>
+
+<p id="todayDate" style="margin-top:-5px;margin-bottom:8px"></p>
+
+<div class="table-wrapper">
+<table>
+<thead>
+<tr>
+<th>S.No</th>
+<th>Roll</th>
+<th>Name</th>
+<th>Class</th>
+</tr>
+</thead>
+<tbody id="list"></tbody>
+</table>
+</div>
+
+<p style="margin-top:6px;font-size:15px">
+<b>Total Present: </b><span id="count">0</span>
+</p>
+
+<button class="green" onclick="downloadExcel()">Download Excel</button>
+</div>
+
+</div>
+
+<!-- Popup -->
+<div class="popup" id="popup">
+<div class="popup-icon">🎉</div>
+<h3>Students Uploaded</h3>
+<p>Saved Successfully</p>
+</div>
+
+<!-- Sound -->
+<audio id="successSound">
+<source src="https://assets.mixkit.co/sfx/preview/mixkit-correct-answer-tone-2870.mp3">
+</audio>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+let students = JSON.parse(localStorage.getItem("students")) || [];
+let attendance = JSON.parse(localStorage.getItem("attendance")) || [];
+showAttendance();
+
+/******** SAVE EXCEL ********/
+function saveExcel(){
+ let file = document.getElementById("excelFile").files[0];
+ if(!file) return alert("Select excel file");
+
+ let reader = new FileReader();
+ reader.onload = e=>{
+ let data = new Uint8Array(e.target.result);
+ let wb = XLSX.read(data,{type:"array"});
+ let sheet = wb.Sheets[wb.SheetNames[0]];
+ students = XLSX.utils.sheet_to_json(sheet);
+
+ localStorage.setItem("students",JSON.stringify(students));
+
+ playSuccess();
+ showPopup();
+ }
+ reader.readAsArrayBuffer(file);
+}
+
+/******** FIND STUDENT ********/
+function findStudent(){
+ let roll = document.getElementById("roll").value.trim().toUpperCase();
+ roll = roll.replace(/\s+/g,"");
+ if(!roll) return;
+
+ let s = students.find(x =>
+   String(x["Roll number"]).trim().toUpperCase() === roll
+ );
+
+ if(s){
+   document.getElementById("name").value = s["Name"] || "";
+   let cls = (s["Year"] || "") + " - " + (s["Section"] || "");
+   document.getElementById("class").value = cls.trim();
+ }
+}
+
+/******** MARK ATTENDANCE ********/
+function markAttendance(){
+ let roll = document.getElementById("roll").value.trim().toUpperCase();
+ if(!roll) return alert("Enter Roll Number");
+
+ let name = document.getElementById("name").value.trim();
+ let cls  = document.getElementById("class").value.trim().toUpperCase();
+
+ attendance.push({
+  Roll: roll,
+  Name: name,
+  Class: cls
+ });
+
+ localStorage.setItem("attendance",JSON.stringify(attendance));
+ showAttendance();
+ playSuccess();
+
+ document.getElementById("roll").value="";
+ document.getElementById("name").value="";
+ document.getElementById("class").value="";
+ document.getElementById("roll").focus();
+}
+
+/******** SHOW TABLE ********/
+function showAttendance(){
+ document.getElementById("list").innerHTML =
+ attendance.map((a,i)=>`
+ <tr>
+ <td>${i+1}</td>
+ <td>${a.Roll}</td>
+ <td>${a.Name}</td>
+ <td>${a.Class}</td>
+ </tr>
+ `).join("");
+
+ document.getElementById("count").innerText = attendance.length;
+
+ let firstRow = document.querySelector("#list tr");
+ if(firstRow){
+ firstRow.style.background="rgba(0,255,120,0.3)";
+ setTimeout(()=>firstRow.style.background="transparent",800);
+ }
+}
+
+/******** CLEAR ********/
+function clearAttendance(){
+ if(!confirm("Clear All Attendance?")) return;
+ attendance=[];
+ localStorage.removeItem("attendance");
+ showAttendance();
+}
+
+/******** DOWNLOAD ********/
+function downloadExcel(){
+ if(attendance.length==0) return alert("No Data");
+ let wb = XLSX.utils.book_new();
+ let ws = XLSX.utils.json_to_sheet(attendance);
+ XLSX.utils.book_append_sheet(wb,ws,"Attendance");
+ XLSX.writeFile(wb,"Attendance.xlsx");
+}
+
+/******** POPUP ********/
+function showPopup(){
+ let p=document.getElementById("popup");
+ p.classList.add("show");
+ setTimeout(()=>p.classList.remove("show"),1800);
+}
+
+/******** SOUND ********/
+function playSuccess(){
+ document.getElementById("successSound").play().catch(()=>{});
+}
+
+/******** MIDNIGHT RESET ********/
+setInterval(()=>{
+ let t = new Date();
+ if(t.getHours()==0 && t.getMinutes()==0){
+   attendance=[];
+   localStorage.removeItem("attendance");
+   showAttendance();
+ }
+},60000);
+
+/******** AUTO FOCUS + ENTER SHORTCUT ********/
+window.onload = ()=>{
+ document.getElementById("roll").focus();
+ document.getElementById("todayDate").innerText =
+ "Today: " + new Date().toLocaleDateString();
+};
+
+document.getElementById("roll").addEventListener("keydown",e=>{
+ if(e.key==="Enter") markAttendance();
+});
+</script>
+
+</body>
+</html>
